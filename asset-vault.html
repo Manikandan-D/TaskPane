@@ -320,33 +320,48 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 5px;
+      gap: 8px;
       opacity: 0;
       transition: opacity 0.18s;
-      background: rgba(12,12,14,0.75);
+      background: rgba(12,12,14,0.78);
       backdrop-filter: blur(4px);
     }
 
     .card:hover .card-overlay { opacity: 1; }
 
-    .copy-icon {
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .action-btn {
       width: 36px; height: 36px;
-      background: var(--accent);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #0c0c0e;
-      transition: transform 0.15s;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .action-btn:hover { transform: scale(1.12); }
+
+    .btn-copy { background: var(--accent); color: #0c0c0e; }
+    .btn-download { background: var(--accent3); color: #0c0c0e; }
+
+    .action-labels {
+      display: flex;
+      gap: 8px;
     }
 
-    .card:hover .copy-icon { transform: scale(1.1); }
-
-    .copy-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--text);
-      letter-spacing: 0.5px;
+    .action-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      width: 36px;
+      text-align: center;
     }
 
     .card-name {
@@ -970,16 +985,26 @@ function renderGrid(cat, files) {
   grid.className = 'grid' + (isCompact ? ' compact' : '') + (isIcons ? ' icons-grid' : '');
 
   grid.innerHTML = files.map(f => `
-    <div class="card ${cat}-card" onclick="copyAsset('${f.id}','${esc(f.name)}',this)" title="${esc(f.name)}">
+    <div class="card ${cat}-card" title="${esc(f.name)}">
       <img src="${thumbUrl(f.id)}" alt="${esc(f.name)}" loading="lazy"
            onerror="this.style.display='none'"/>
       <div class="card-overlay">
-        <div class="copy-icon">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
+        <div class="card-actions">
+          <button class="action-btn btn-copy" onclick="copyAsset('${f.id}','${esc(f.name)}',this.closest('.card'))" title="Copy to clipboard">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <button class="action-btn btn-download" onclick="downloadAsset('${f.id}','${esc(f.name)}')" title="Download file">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
         </div>
-        <span class="copy-label">COPY</span>
+        <div class="action-labels">
+          <span class="action-label">COPY</span>
+          <span class="action-label">SAVE</span>
+        </div>
       </div>
       <div class="card-name">${esc(f.name)}</div>
     </div>
@@ -1034,6 +1059,32 @@ async function copyAsset(fileId, name, cardEl) {
     // Fallback: open image in new tab so user can right-click copy
     window.open(`https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`, '_blank');
     showToast('Opened in new tab — right-click → Copy image', true);
+    setSt('ok', 'Ready');
+  }
+}
+
+async function downloadAsset(fileId, name) {
+  setSt('busy', 'Downloading…');
+  try {
+    const url = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Fetch failed');
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    // Use original name, fallback to fileId
+    const ext = blob.type.includes('png') ? '.png' : blob.type.includes('jpeg') ? '.jpg' : blob.type.includes('svg') ? '.svg' : '.png';
+    a.download = name.includes('.') ? name : name + ext;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    showToast(`"${name.length > 22 ? name.slice(0,22)+'…' : name}" downloaded!`);
+    setSt('ok', 'Ready');
+  } catch(err) {
+    // Fallback: open Drive download link
+    window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, '_blank');
+    showToast('Opening download link…', true);
     setSt('ok', 'Ready');
   }
 }
